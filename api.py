@@ -4,6 +4,7 @@ import os
 import multiprocessing
 import requests
 import zipfile
+import tensorflow_model_optimization as tfmot
 
 app = Flask(__name__)
 
@@ -39,6 +40,8 @@ def create_tf_model():
         # Output layer
         model.add(tf.keras.layers.Dense(output_size))
 
+        model = tfmot.quantization.keras.quantize_model(model)
+
         # Compile the model
         model.compile(optimizer='adam', loss='mean_squared_error')
 
@@ -46,7 +49,7 @@ def create_tf_model():
         model_path = os.path.join(MODEL_DIR, f"{model_name}.tf")
         model.save(model_path)
 
-        output_queue.put(f"Model '{model_name}' created and saved at {model_path}")
+        output_queue.put(f"Model '{model_name}' created with QAT and saved at {model_path}")
 
     # Start a subprocess to create the model
     model_process = multiprocessing.Process(target=create_model_process, args=(model_name, input_size, hidden_layers, output_size, output_queue))
@@ -74,6 +77,20 @@ def update_tf_model():
 
     # Create a multiprocessing queue to handle results from the subprocess
     output_queue = multiprocessing.Queue()
+    
+    # Import TensorFlow inside the subprocess
+    import tensorflow as tf
+
+    model_path = os.path.join(MODEL_DIR, f"{model_name}.tf")
+    
+    if not os.path.exists(model_path):
+        output_queue.put(f"Model '{model_name}' not found")
+        return
+
+    # Load existing model
+    model = tf.keras.models.load_model(model_path)
+
+    print(model.summary())
 
     def update_model_process(model_name, new_x, new_y, learning_rate, epochs, output_queue):
         # Import TensorFlow inside the subprocess
@@ -90,7 +107,7 @@ def update_tf_model():
 
         # Recompile with the user-specified learning rate
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), 
-                      loss='mean_squared_error')
+                    loss='mean_squared_error')
 
         # Train with new data
         model.fit(new_x, new_y, epochs=epochs, batch_size=16, verbose=1)
@@ -141,7 +158,7 @@ def compile_and_cocompile_models():
             # Define a representative dataset (for quantization)
             def representative_data_gen():
                 input_shape = model.input_shape[1:]  # Get the input shape excluding the batch size
-                for _ in range(100):  # Use 100 samples for the representative dataset
+                for _ in range(300):  # Use 100 samples for the representative dataset
                     yield [np.random.uniform(0, 255, input_shape).astype(np.float32)]
 
             # Apply post-training quantization (int8 for Edge TPU compatibility)
