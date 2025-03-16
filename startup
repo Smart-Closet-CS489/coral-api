@@ -1,0 +1,134 @@
+#!/bin/bash
+CONFIG_FILE="./config.env"  # Config file assumed to be in the same directory
+
+# Load the config file
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+else
+    echo "coral-api >>>> Config file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+# Set repo path relative to the script's location
+SCRIPT_DIR="$(dirname "$0")"
+REPO_PATH="$SCRIPT_DIR"
+
+WHL_DIR="$WHL_DIR"      # Loaded from config.env
+MODEL_DIR="$MODEL_DIR"  # Loaded from config.env
+PORT=${CORAL_API_PORT:-8000}  # Load port, fallback to 8000 if not found
+
+# Flags
+QUICK_START=false
+BUILD_ONLY=false
+INITIAL_BUILD=false
+SHUTDOWN=false
+
+# ---- PARSE COMMAND-LINE ARGUMENTS ----
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -q|--quick) QUICK_START=true ;;
+        -b|--build) BUILD_ONLY=true ;;
+        -i|--initial) INITIAL_BUILD=true ;;
+        -s|--shutdown) SHUTDOWN=true ;;
+        --) shift; break ;;
+        -*)
+            echo "coral-api >>>> Unknown parameter: $1"
+            exit 1
+            ;;
+        *)
+            echo "coral-api >>>> Unknown parameter: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+# ---- SHUTDOWN CONTAINER IF REQUESTED ----
+if [[ "$SHUTDOWN" == true ]]; then
+    echo "coral-api >>>> Stopping coral-api container..."
+    CONTAINER_ID=$(docker ps -q --filter "ancestor=coral-api-image")
+
+    if [[ -n "$CONTAINER_ID" ]]; then
+        docker stop "$CONTAINER_ID"
+        echo "coral-api >>>> coral-api container stopped."
+    else
+        echo "coral-api >>>> No running coral-api container found."
+    fi
+
+    exit 0
+fi
+
+# ---- CHECK IF CORAL API CONTAINER IS RUNNING AND STOP IT ----
+# Check for running containers
+RUNNING_CONTAINER=$(docker ps -q --filter "name=coral-api-container")
+
+# Stop the running container if found
+if [[ -n "$RUNNING_CONTAINER" ]]; then
+    echo "coral-api >>>> Existing coral-api container found. Stopping it..."
+    docker stop "$RUNNING_CONTAINER"
+    echo "coral-api >>>> Existing coral-api container stopped."
+fi
+
+# Remove any containers (running or stopped) with the name "coral-api-container"
+STOPPED_CONTAINER=$(docker ps -a -q --filter "name=coral-api-container")
+
+if [[ -n "$STOPPED_CONTAINER" ]]; then
+    echo "coral-api >>>> Removing existing coral-api container..."
+    docker rm "$STOPPED_CONTAINER"
+    echo "coral-api >>>> Existing coral-api container removed."
+fi
+
+# Build base image if -i flag is used
+if [[ "$INITIAL_BUILD" == true ]]; then
+    BASE_IMAGE_PATH="$REPO_PATH/base-image"
+    WHL_FILENAME="tensorflow-2.5.0-cp37-cp37m-linux_aarch64.whl"
+
+    if [[ -d "$BASE_IMAGE_PATH" ]]; then
+        echo "coral-api >>>> Building base image..."
+        
+        # Copy .whl file if it exists
+        if [[ -f "$WHL_DIR/$WHL_FILENAME" ]]; then
+            cp "$WHL_DIR/$WHL_FILENAME" "$BASE_IMAGE_PATH/$WHL_FILENAME"
+        else
+            echo "coral-api >>>> Missing WHL file: $WHL_FILENAME"
+        fi
+
+        cd "$BASE_IMAGE_PATH" || exit 1
+        docker build -t "coral-api-base-image" ./ 
+        cd - > /dev/null
+
+        # Remove copied .whl file after build
+        rm -f "$BASE_IMAGE_PATH/$WHL_FILENAME"
+        echo "coral-api >>>> Base image built."
+    else
+        echo "coral-api >>>> No base-image directory found, skipping base build."
+    fi
+fi
+
+# Build main image (skip if -q flag is used)
+if [[ "$QUICK_START" == false ]]; then
+    echo "coral-api >>>> Building coral-api..."
+    docker build -t "coral-api-image" ./ 
+else
+    echo "coral-api >>>> Quick start enabled, skipping build."
+fi
+
+# Exit if -b flag is set
+if [[ "$BUILD_ONLY" == true ]]; then
+    echo "coral-api >>>> Build-only mode enabled, skipping run."
+    cd - > /dev/null
+    exit 0
+fi
+
+# ---- START CORAL API ----
+echo "coral-api >>>> Starting coral-api..."
+cd "$REPO_PATH" || exit 1
+
+# Run container in the background
+echo "coral-api >>>> Running coral-api on port $PORT..."
+docker run -v "$MODEL_DIR:/app/models" --env-file "$CONFIG_FILE" -p "$PORT":8000 --rm --privileged --device /dev/bus/usb:/dev/bus/usb -dit --name coral-api-container "coral-api-image"
+
+echo "coral-api >>>> coral-api started in the background."
+echo "coral-api >>>> Use 'docker logs -f coral-api-container' to see logs."
+cd - > /dev/null
+echo "coral-api >>>> Done."
