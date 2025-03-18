@@ -22,3 +22,13 @@ RUN apt-get install python3-pycoral -y
 RUN pip3 install pillow
 RUN pip3 install flask
 
+RUN apt-get update && apt-get install -y python3-dev build-essential
+RUN wget https://cmake.org/files/v3.24/cmake-3.24.0-linux-aarch64.tar.gz -P /tmp && \
+    tar -xzvf /tmp/cmake-3.24.0-linux-aarch64.tar.gz -C /opt && \
+    ln -s /opt/cmake-3.24.0-linux-aarch64/bin/cmake /usr/local/bin/cmake && \
+    cmake --version
+RUN pip3 install dm-tree
+RUN pip3 install -q tensorflow-model-optimization==0.5.0
+
+RUN apt-get install -y nginx
+RUN pip3 install gunicorn

@@ -4,7 +4,6 @@ import os
 import multiprocessing
 import requests
 import zipfile
-import tensorflow_model_optimization as tfmot
 
 app = Flask(__name__)
 
@@ -28,6 +27,7 @@ def create_tf_model():
     def create_model_process(model_name, input_size, hidden_layers, output_size, output_queue):
         # Import TensorFlow inside the subprocess
         import tensorflow as tf
+        import tensorflow_model_optimization as tfmot
         
         # Define the model architecture
         model = tf.keras.Sequential()
@@ -77,20 +77,6 @@ def update_tf_model():
 
     # Create a multiprocessing queue to handle results from the subprocess
     output_queue = multiprocessing.Queue()
-    
-    # Import TensorFlow inside the subprocess
-    import tensorflow as tf
-
-    model_path = os.path.join(MODEL_DIR, f"{model_name}.tf")
-    
-    if not os.path.exists(model_path):
-        output_queue.put(f"Model '{model_name}' not found")
-        return
-
-    # Load existing model
-    model = tf.keras.models.load_model(model_path)
-
-    print(model.summary())
 
     def update_model_process(model_name, new_x, new_y, learning_rate, epochs, output_queue):
         # Import TensorFlow inside the subprocess
@@ -277,6 +263,6 @@ def run_inference_on_coral():
     return jsonify({"output": output_data}), 200
 
 
-if __name__ == '__main__':
-    # Start the Flask server
-    app.run(host='0.0.0.0', port=8000)
+# if __name__ == '__main__':
+#     # Start the Flask server
+#     app.run(host='0.0.0.0', port=8000)

@@ -126,7 +126,7 @@ cd "$REPO_PATH" || exit 1
 
 # Run container in the background
 echo "coral-api >>>> Running coral-api on port $PORT..."
-docker run -v "$MODEL_DIR:/app/models" --env-file "$CONFIG_FILE" -p "$PORT":8000 --rm --privileged --device /dev/bus/usb:/dev/bus/usb -dit --name coral-api-container "coral-api-image"
+docker run -v "$MODEL_DIR:/app/models" --env-file "$CONFIG_FILE" -p "$PORT":8000 --privileged --device /dev/bus/usb:/dev/bus/usb -dit --name coral-api-container "coral-api-image"
 
 echo "coral-api >>>> coral-api started in the background."
 echo "coral-api >>>> Use 'docker logs -f coral-api-container' to see logs."
