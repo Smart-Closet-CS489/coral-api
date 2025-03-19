@@ -15,7 +15,7 @@ CACHE_TIMEOUT = 10
 cached_models = {}
 
 def load_model(model_name):
-    model_path = f"/app/models/{model_name}_edgetpu.tflite"
+    model_path = f"/app/models/{model_name}/{model_name}_edgetpu.tflite"
     interpreter = edgetpu.make_interpreter(model_path)
     interpreter.allocate_tensors()
     return interpreter
