@@ -17,6 +17,7 @@ MODEL_DIR = "/app/models"
 
 # ---- Private ----------------------------
 
+
 # ---- Flask endpoints --------------------------------
 app = Flask(__name__)
 
@@ -28,7 +29,7 @@ def create_model():
     hidden_sizes = data.get("hidden_sizes", [])
     output_size = data.get("output_size")
     model_type = data.get("model_type")
-    history_buffer_size = data.get("history_buffer_size", 100)  # Default to 100 if not provided
+    memory_size = data.get("memory_size", 1000)  # Default to 1000 if not provided
 
     activation_function = ""
     if model_type == "regression":
@@ -70,9 +71,9 @@ def create_model():
         "hidden_sizes": hidden_sizes,
         "output_size": output_size,
         "model_type": model_type,
-        "history_buffer_size": history_buffer_size,
-        "history_inputs": [],
-        "history_outputs": []
+        "memory_size": memory_size,
+        "memory_inputs": [],
+        "memory_outputs": []
     }
 
     json_file_path = os.path.join(model_folder, f"{model_name}.json")
@@ -84,103 +85,116 @@ def create_model():
 
 @app.route('/model/update_model', methods=['POST'])
 def update_model():
+    # Constants
+    INITIAL_LEARNING_RATE = 0.001
+    BATCH_SIZE = 4  # Initial batch size
+    MIN_BATCH_SIZE = 2
+    MAX_BATCH_SIZE = 8
+    EPOCHS = 80
+    MEMORY_SAMPLING_PERCENT = 0.5  # Percent of stored memory to sample per training round
+    LOSS_THRESHOLD = 0.01  # Change in loss required to trigger batch size change
+    BATCH_ADJUST_FACTOR = 2  # Factor by which to increase/decrease batch size
+    LR_DECAY_FACTOR = 0.9  # Factor to decay learning rate when loss worsens
+    LR_INCREASE_FACTOR = 1.1  # Factor to increase learning rate when loss improves
+
+    # Get request data
     data = request.get_json()
-    model_name = data.get("model_name")
-    inputs = np.array(data.get("inputs"), dtype=np.float32)
-    outputs = np.array(data.get("outputs"), dtype=np.float32)
-    learning_rate = data.get("learning_rate", 0.001)
-    epochs = data.get("epochs", 5)
-    batch_size = data.get("batch_size", 16)
-    history_percent = data.get("history_percent", None)  # The percentage of historical data to sample (None if not provided)
+    model_name = data["model_name"]
+    inputs = np.array(data["inputs"], dtype=np.float32)
+    outputs = np.array(data["outputs"], dtype=np.float32)
 
-    if not model_name or inputs is None or outputs is None:
-        return jsonify({"error": "Missing required fields (model_name, inputs, outputs)"}), 400
-
-    # Clip inputs and outputs to [0, 1] range
+    # Clip inputs/outputs to [0, 1] range
     inputs = np.clip(inputs, 0, 1)
     outputs = np.clip(outputs, 0, 1)
 
-    # Load the model
+    # Load model
     model_path = os.path.join(MODEL_DIR, f"{model_name}/{model_name}.tf")
-    
-    if not os.path.exists(model_path):
-        return jsonify({"error": f"Model '{model_name}' not found"}), 404
-
     model = tf.keras.models.load_model(model_path)
-    
-    # Read the existing model's JSON file to get history data
+
+    # Load memory from JSON
     json_file_path = os.path.join(MODEL_DIR, f"{model_name}/{model_name}.json")
-    if os.path.exists(json_file_path):
-        with open(json_file_path, 'r') as f:
-            model_data = json.load(f)
-        
-        history_inputs = model_data.get("history_inputs", [])
-        history_outputs = model_data.get("history_outputs", [])
-        history_buffer_size = model_data.get("history_buffer_size", 100)  # Get history buffer size from the JSON file
-    else:
-        history_inputs = []
-        history_outputs = []
-        history_buffer_size = 100  # Default buffer size if not found in JSON
+    with open(json_file_path, 'r') as f:
+        model_data = json.load(f)
 
-    # Step 1: Sample history based on history_percent if history_inputs is not empty
-    if history_percent and len(history_inputs) > 0:
-        history_sample_size = int(len(history_inputs) * history_percent)
-        sampled_indices = random.sample(range(len(history_inputs)), history_sample_size)
-        
-        sampled_inputs = [history_inputs[i] for i in sampled_indices]
-        sampled_outputs = [history_outputs[i] for i in sampled_indices]
-    else:
-        sampled_inputs = []
-        sampled_outputs = []
+    memory_inputs = model_data["memory_inputs"]
+    memory_outputs = model_data["memory_outputs"]
+    memory_size = model_data["memory_size"]
 
-    # Step 2: Add new inputs and outputs to the beginning of the history, if history exists
-    if len(history_inputs) > 0:
-        history_inputs = inputs.tolist() + history_inputs
-        history_outputs = outputs.tolist() + history_outputs
-    else:
-        # If no history exists, just use the current inputs and outputs
-        history_inputs = inputs.tolist()
-        history_outputs = outputs.tolist()
+    # Sample memory (randomly select a percentage of stored memory)
+    memory_sample_size = int(len(memory_inputs) * MEMORY_SAMPLING_PERCENT)
+    sampled_indices = random.sample(range(len(memory_inputs)), memory_sample_size) if memory_inputs else []
+    sampled_inputs = np.array([memory_inputs[i] for i in sampled_indices])
+    sampled_outputs = np.array([memory_outputs[i] for i in sampled_indices])
 
-    # Step 3: Trim the history if it exceeds the history buffer size
-    if len(history_inputs) > history_buffer_size:
-        excess_size = len(history_inputs) - history_buffer_size
-        history_inputs = history_inputs[:history_buffer_size]
-        history_outputs = history_outputs[:history_buffer_size]
+    # Combine sampled memory with new inputs
+    extended_inputs = np.concatenate((inputs, sampled_inputs)) if sampled_inputs.size else inputs
+    extended_outputs = np.concatenate((outputs, sampled_outputs)) if sampled_outputs.size else outputs
 
-    # Step 4: Add the sampled inputs and outputs to the new inputs/outputs only if sampled data exists
-    if len(sampled_inputs) > 0:
-        extended_inputs = np.concatenate((inputs, np.array(sampled_inputs)))
-        extended_outputs = np.concatenate((outputs, np.array(sampled_outputs)))
-    else:
-        extended_inputs = inputs
-        extended_outputs = outputs
+    # Determine loss function
+    loss_functions = {
+        "regression": "mean_squared_error",
+        "classification": "categorical_crossentropy",
+        "binary": "binary_crossentropy"
+    }
+    loss_function = loss_functions.get(model_data["model_type"], "mean_squared_error")
 
-    # Update the model's history in the JSON file
-    model_data["history_inputs"] = history_inputs
-    model_data["history_outputs"] = history_outputs
+    # Compile model with initial optimizer
+    optimizer = tf.keras.optimizers.Adam(learning_rate=INITIAL_LEARNING_RATE)
+    model.compile(optimizer=optimizer, loss=loss_function)
 
+    prev_loss = float("inf")  # Track previous epoch loss
+    learning_rate = INITIAL_LEARNING_RATE  # Track learning rate
+
+    # Training loop
+    for epoch in range(EPOCHS):
+        # Update learning rate dynamically before training
+        tf.keras.backend.set_value(model.optimizer.learning_rate, learning_rate)
+
+        # Train model
+        history = model.fit(extended_inputs, extended_outputs, epochs=1, batch_size=BATCH_SIZE, verbose=0)
+        avg_loss = history.history["loss"][0]
+
+        # Print diagnostics
+        print(f"Epoch {epoch + 1}: Loss={avg_loss:.6f}, Batch Size={BATCH_SIZE}, Learning Rate={learning_rate:.6f}")
+
+        # Adjust batch size
+        if abs(prev_loss - avg_loss) < LOSS_THRESHOLD:
+            BATCH_SIZE = min(BATCH_SIZE * BATCH_ADJUST_FACTOR, MAX_BATCH_SIZE)  # Increase batch size
+        elif avg_loss > prev_loss:
+            BATCH_SIZE = max(MIN_BATCH_SIZE, BATCH_SIZE // BATCH_ADJUST_FACTOR)  # Decrease batch size
+
+        # Adjust learning rate
+        if avg_loss < prev_loss:
+            learning_rate *= LR_INCREASE_FACTOR  # Slightly increase learning rate if loss improves
+        else:
+            learning_rate *= LR_DECAY_FACTOR  # Decay learning rate if loss worsens
+
+        prev_loss = avg_loss  # Update previous loss
+
+    # Save updated model
+    model.save(model_path)
+
+    # Update memory (prepend new inputs & outputs)
+    memory_inputs = inputs.tolist() + memory_inputs
+    memory_outputs = outputs.tolist() + memory_outputs
+
+    # Trim memory if it exceeds the buffer size
+    if len(memory_inputs) > memory_size:
+        memory_inputs = memory_inputs[:memory_size]
+        memory_outputs = memory_outputs[:memory_size]
+
+    # Save updated memory to JSON
+    model_data["memory_inputs"] = memory_inputs
+    model_data["memory_outputs"] = memory_outputs
     with open(json_file_path, 'w') as f:
         json.dump(model_data, f, indent=4)
 
-    # Compile the model with the correct loss function
-    if model_data["model_type"] == "regression":
-        loss_function = 'mean_squared_error'
-    elif model_data["model_type"] == "classification":
-        loss_function = 'categorical_crossentropy'
-    elif model_data["model_type"] == "binary":
-        loss_function = 'binary_crossentropy'
-    else:
-        loss_function = 'mean_squared_error'  # Default to regression
-
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                  loss=loss_function)
-
-    # Train the model with the extended inputs and outputs (current data + sampled history)
-    model.fit(extended_inputs, extended_outputs, epochs=epochs, batch_size=batch_size, verbose=1)
-    model.save(model_path)
-
     return jsonify({"message": f"Model '{model_name}' updated with new training data!"}), 200
+
+
+    
+
+
     
 
 @app.route('/model/compile_models', methods=['POST'])
