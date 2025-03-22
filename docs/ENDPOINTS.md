@@ -26,7 +26,7 @@
 **POST** `/models/compilations`
 
 **Request Body:**
-- `model_names` (list of strings) – Names of models to compile (or cocompile if more than one model)
+- `model_names` (list of strings) – Names of models to compile
 
 ---
 
@@ -35,6 +35,9 @@
 
 **Request Body:**
 - `inputs` (list of lists) – List of input values for inference
+
+**Response Body:**
+- `outputs` (list of lists) – List of output values returned from the inference
 
 ---
 
@@ -45,3 +48,11 @@
 
 ## Get Model Information
 **GET** `/models/{model_name}`
+
+**Response Body:**
+- `model_name` (string) – Name of the model
+- `input_size` (int) – Number of input features
+- `hidden_sizes` (list of ints) – List of hidden layer sizes
+- `output_size` (int) – Number of output features
+- `model_type` (string) – Type of model (e.g., "regression")
+- `memory_size` (int) – Memory size for history buffer
