@@ -45,7 +45,7 @@ def post_training_session(model_name):
     inputs = np.clip(inputs, 0, 1)
     outputs = np.clip(outputs, 0, 1)
     # inputs = np.clip(inputs * 255, 0, 255).astype(np.float32)
-    outputs = np.clip(outputs * 254, 0, 254).astype(np.float32)
+    outputs = np.clip(outputs * 255, 0, 255).astype(np.float32)
 
     # Load model
     model_path = os.path.join(MODEL_DIR, f"{model_name}/{model_name}.tf")

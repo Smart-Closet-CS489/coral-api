@@ -40,8 +40,23 @@ def post_compilation():
 
         def representative_data_gen():
             input_shape = model.input_shape[1:]
-            for _ in range(200):
-                yield [np.random.uniform(0, 1, input_shape).astype(np.float32)]  # Uniformly random values between 0 and 1
+            
+            # Explicitly include edge cases
+            edge_cases = [
+                np.zeros(input_shape, dtype=np.float32),  # All 0s (min edge)
+                np.ones(input_shape, dtype=np.float32),   # All 1s (max edge)
+                np.full(input_shape, 0.5, dtype=np.float32),  # All 0.5 (midpoint)
+                np.full(input_shape, 0.25, dtype=np.float32), # Lower quarter
+                np.full(input_shape, 0.75, dtype=np.float32)  # Upper quarter
+            ]
+            
+            for edge_case in edge_cases:
+                yield [edge_case]
+            
+            # Add random values for better distribution coverage
+            for _ in range(195):  # Reduced from 200 to make room for 5 edge cases
+                yield [np.random.uniform(0, 1, input_shape).astype(np.float32)]
+
 
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
