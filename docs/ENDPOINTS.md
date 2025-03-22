@@ -54,5 +54,5 @@
 - `input_size` (int) – Number of input features
 - `hidden_sizes` (list of ints) – List of hidden layer sizes
 - `output_size` (int) – Number of output features
-- `model_type` (string) – Type of model (e.g., "regression")
+- `model_type` (string) – Type of model ("regression", "binary", "classification")
 - `memory_size` (int) – Memory size for history buffer
