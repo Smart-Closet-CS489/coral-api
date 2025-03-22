@@ -11,6 +11,18 @@
 - `model_type` (string) – Type of model ("regression", "binary", "classification")
 - `memory_size` (int) – Memory size for history buffer
 
+**Sample Request:**
+```
+{
+    "model_name": "norm_model",
+    "input_size": 2,
+    "hidden_sizes": [128, 128, 128, 128],
+    "output_size": 1,
+    "model_type": "regression",
+    "memory_size": 1000
+}
+```
+
 ---
 
 ## Train a Model
