@@ -1,4 +1,4 @@
-# run.py
+# inference.py
 
 # ---- Imports ----------------------------------
 import time
@@ -20,11 +20,8 @@ def _load_model(model_name):
     interpreter.allocate_tensors()
     return interpreter
 
-# ---- Endpoint ---------------------
-def run():
-    # ---- Query paramters -----------------------------
-    model_name = request.args.get('model_name')
-
+# ---- Endpoints ---------------------
+def post_inference(model_name):
     # ---- Request body -------------------------
     data = request.json
     inputs = np.array(data.get("inputs"), dtype=np.float32)

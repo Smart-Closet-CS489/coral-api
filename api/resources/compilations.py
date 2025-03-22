@@ -1,4 +1,4 @@
-# compile_edgetpu.py
+# compilations.py
 
 # ---- Imports ----------------------------------
 from flask import jsonify, request
@@ -18,12 +18,13 @@ MODEL_DIR = os.getenv('DOCKER_MODEL_DIR')
 # ---- Private ----------------------------
 
 # ---- Endpoint --------------------------------
-def compile_edgetpu():
-    # ---- Query paramters -----------------------------
-    model_names = request.args.getlist('model_name')
+def post_compilation():
+    # ---- Request body -------------------------
+    data = request.json
+    model_names = data.get("model_names")
 
     # ---- Request validation ------------------------------------
-    if model_name is None or model_name == "":
+    if model_names is None or model_names == "":
         return jsonify({"error": "Model name(s) are missing or empty."}), 400
 
     # ---- Logic ------------------------------------
@@ -39,9 +40,8 @@ def compile_edgetpu():
 
         def representative_data_gen():
             input_shape = model.input_shape[1:]
-            for _ in range(100):
+            for _ in range(200):
                 yield [np.random.uniform(0, 1, input_shape).astype(np.float32)]  # Uniformly random values between 0 and 1
-
 
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
         converter.optimizations = [tf.lite.Optimize.DEFAULT]

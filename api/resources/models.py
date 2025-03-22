@@ -1,4 +1,4 @@
-# create.py
+# models.py
 
 # ---- Imports ----------------------------------
 from flask import jsonify, request
@@ -17,15 +17,13 @@ MODEL_DIR = os.getenv('DOCKER_MODEL_DIR')
 
 # ---- Private ----------------------------
 
-# ---- Endpoint --------------------------------
-def create():
-    # ---- Query paramters -----------------------------
-    model_name = request.args.get('model_name')
-
+# ---- Endpoints --------------------------------
+def post_model():
     # ---- Request body -------------------------
     data = request.json
+    model_name = data.get("model_name")
     input_size = data.get("input_size")
-    hidden_sizes = data.get("hidden_sizes", [])
+    hidden_sizes = data.get("hidden_sizes")
     output_size = data.get("output_size")
     model_type = data.get("model_type")
     memory_size = data.get("memory_size")
@@ -45,6 +43,10 @@ def create():
         errors.append("'memory_size' is required and must be a positive integer.")
 
     # ---- Logic -----------------------------------------
+    model_folder = os.path.join(MODEL_DIR, model_name)
+    if os.path.exists(model_folder):
+        return jsonify({"error": f"Model '{model_name}' already exists, if you wish to overwrite it you must first delete it."}), 400
+
     activation_function = ""
     if model_type == "classification":
         activation_function = "softmax"
@@ -76,6 +78,8 @@ def create():
     model_path = os.path.join(model_folder, f"{model_name}.tf")
     model.save(model_path)
 
+    print(model.summary())
+
     # Create and save the JSON file
     model_data = {
         "model_name": model_name,
@@ -94,3 +98,51 @@ def create():
 
     return jsonify({"message": f"Model '{model_name}' created and saved at {model_path}, and JSON saved at {json_file_path}"}), 200
 
+
+def get_model(model_name):
+    # ---- Request validation ------------------------------------
+    if model_name is None or model_name == "":
+        return jsonify({"error": "Model name is missing or empty."}), 400
+
+    # ---- Logic -----------------------------------------
+    model_folder = os.path.join(MODEL_DIR, model_name)
+
+    if not os.path.exists(model_folder):
+        return jsonify({"error": f"Model '{model_name}' not found."}), 404
+
+    json_file_path = os.path.join(model_folder, f"{model_name}.json")
+
+    if not os.path.exists(json_file_path):
+        return jsonify({"error": f"JSON file for model '{model_name}' not found."}), 404
+
+    try:
+        with open(json_file_path, 'r') as json_file:
+            model_data = json.load(json_file)
+
+        # Remove memory inputs and outputs
+        model_data.pop("memory_inputs", None)
+        model_data.pop("memory_outputs", None)
+
+        return jsonify(model_data), 200
+    except Exception as e:
+        return jsonify({"error": f"Error reading model data: {str(e)}"}), 500
+
+
+def delete_model(model_name):
+    # ---- Request validation -----------------------------
+    if model_name is None or model_name == "":
+        return jsonify({"error": "Model name is missing or empty."}), 400
+
+    # ---- Logic -----------------------------------------
+    model_folder = os.path.join(MODEL_DIR, model_name)
+
+    # Check if the model folder exists
+    if not os.path.exists(model_folder):
+        return jsonify({"error": f"Model '{model_name}' does not exist."}), 404
+
+    try:
+        # Remove the entire model directory
+        shutil.rmtree(model_folder)
+        return jsonify({"message": f"Model '{model_name}' and its directory have been deleted."}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error deleting the model: {str(e)}"}), 500

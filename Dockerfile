@@ -6,6 +6,6 @@ ENV DOCKER_MODEL_DIR=/app/models
 WORKDIR /app
 EXPOSE 8000
 
-CMD gunicorn --timeout 200 --bind 0.0.0.0:5001 api.model_api.model:app & \
-    gunicorn --timeout 200 --bind 0.0.0.0:5002 api.inference_api.inference:app & \
+CMD gunicorn --timeout 3600 --bind 0.0.0.0:5001 api.api:app & \
+    gunicorn --timeout 3600 --bind 0.0.0.0:5002 api.api_helper:app_helper & \
     /usr/sbin/nginx -g "daemon off;"
