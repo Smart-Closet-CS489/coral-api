@@ -23,6 +23,9 @@
 }
 ```
 
+**Description:**
+Creates a new tensorflow model with name `model_name` and size determined by `input_size`, `hidden_sizes`, and `output_size`. The activation functions used will be determined by the `model_type` parameter, which acts as a template. Finally, the `memory_size` parameter will determine how many training input/output pairs will be stored before the model starts to forget said data in new training sessions.
+
 ---
 
 ## Train a Model
@@ -40,6 +43,9 @@
 }
 ```
 
+**Description:**
+Starts a training session for model with name `model_name`. Inputs` and `outputs` will be paired based on order (eg. the first input in `inputs` pairs with the first output in `outputs`). This new set of data is then mixed with memory input/output pairs, and this combined set of data is used to train the model. the memory data is refreshed several times throughout the training session so as to keep past learning relevant.
+
 ---
 
 ## Compile Model for Edge TPU
@@ -54,6 +60,9 @@
     "model_names": ["sample_model", "test_model"]
 }
 ```
+
+**Description:**
+All models specified in `model_names` will be co-compiled together into their edgetpu tflite format. Doing this will allow the user to inference these models back-to-back without the models needed to be switched in SRAM, improving performance. Do this for groups of models that will be inferenced together, or a single model if independent. Remember, the max SRAM size is 7MB, so co-compiling models with a combined size larger than 7MB will force inefficient CPU usage.
 
 ---
 
@@ -73,10 +82,16 @@
 **Response Body:**
 - `outputs` (list of lists) – List of output values returned from the inference
 
+**Description:**
+Loads the model with name `model_name` into the Google Coral (if not already present), and then passes all `inputs` into the coral to be inferenced. The `outputs` (in the same order of the inputs) are then returned in the request body.
+
 ---
 
 ## Delete a Model
 **DELETE** `/models/{model_name}`
+
+**Description:**
+Deletes the model with name `model_name` and all associated information (if it exists).
 
 ---
 
@@ -90,3 +105,6 @@
 - `output_size` (int) – Number of output features
 - `model_type` (string) – Type of model ("regression", "binary", "classification")
 - `memory_size` (int) – Memory size for history buffer
+
+**Description:**
+Returns all information for the model with name `model_name`.
