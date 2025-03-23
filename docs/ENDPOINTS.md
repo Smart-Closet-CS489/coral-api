@@ -49,7 +49,7 @@ Starts a training session for model with name `model_name`. `Inputs` and `output
 ---
 
 ## See if a training session is active
-**POST** `/models/{model_name}/training_session`
+**GET** `/models/{model_name}/training_session`
 
 **Response Body:**
 - `training_session_active` (boolean) – Specifies if there is an ongoing training session for this model

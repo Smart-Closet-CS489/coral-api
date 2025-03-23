@@ -44,9 +44,9 @@ def post_training_session(model_name):
 
     # ---- Logic ------------------------------------
     # Transform inputs and outputs from [0, 1] to [0, 255], and keep them as float32
-    if not _redis_client.exists("training_session_" + model_name):
+    if _redis_client.exists("training_session_" + model_name) == 1:
         return jsonify({"error": f"Training session is already in progress for {model_name}."}), 400
-    _redis_client.set("training_session_" + model_name, True)
+    _redis_client.set("training_session_" + model_name, 1)
 
     inputs = np.clip(inputs, 0, 1)
     # outputs = np.clip(outputs, 0, 1)
@@ -82,7 +82,7 @@ def post_training_session(model_name):
 
     # Compile model with current optimizer outside the loop
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss=loss_function, metrics=['accuracy'])  # Add 'accuracy' as a metric
+    model.compile(optimizer=optimizer, loss=loss_function)  # Add 'accuracy' as a metric
 
     # Training loop (iterating over several rounds)
     for round_num in range(1, 6):  # 5 rounds with gradually increasing memory and batch size
@@ -105,7 +105,7 @@ def post_training_session(model_name):
         history = model.fit(extended_inputs, extended_outputs, epochs=epochs, batch_size=batch_size, verbose=0)
 
         # Print diagnostics: Loss and accuracy
-        print(f"Round {round_num} Loss={history.history['loss'][-1]:.9f}, Accuracy={history.history['accuracy'][-1]:.6f}")
+        print(f"Round {round_num} Loss={history.history['loss'][-1]:.9f}")
         print("========================================================\n")
 
         # Adjust batch size and learning rate for next round
@@ -116,7 +116,7 @@ def post_training_session(model_name):
 
     # Save updated model
     model.save(model_path)
-    del _currently_training[model_name]
+    _redis_client.delete("training_session_" + model_name)
 
     predictions = model.predict(inputs)
     for i in range(min(5, len(inputs))):  # Print first 5 samples or as many as you have
@@ -145,6 +145,6 @@ def post_training_session(model_name):
 
 
 def get_training_session(model_name):
-    training_session_ongoing = _redis_client.exists("training_session_" + model_name)
+    training_session_ongoing = _redis_client.exists("training_session_" + model_name) == 1
     return jsonify({"training_session_active": training_session_ongoing}), 200
 
