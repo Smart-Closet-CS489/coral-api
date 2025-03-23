@@ -8,6 +8,6 @@ EXPOSE 8000
 EXPOSE 6379
 
 CMD gunicorn --workers 4 --timeout 200 --bind 0.0.0.0:5001 api.api:app & \
-    gunicorn --workers 4 --timeout 200 --bind 0.0.0.0:5002 api.api_helper:app_helper & \
+    gunicorn --workers 1 --timeout 200 --bind 0.0.0.0:5002 api.api_helper:app_helper & \
     redis-server --daemonize yes & \
     /usr/sbin/nginx -g "daemon off;"
