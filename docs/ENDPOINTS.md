@@ -44,7 +44,18 @@ Creates a new tensorflow model with name `model_name` and size determined by `in
 ```
 
 **Description:**
-Starts a training session for model with name `model_name`. Inputs` and `outputs` will be paired based on order (eg. the first input in `inputs` pairs with the first output in `outputs`). This new set of data is then mixed with memory input/output pairs, and this combined set of data is used to train the model. the memory data is refreshed several times throughout the training session so as to keep past learning relevant.
+Starts a training session for model with name `model_name`. `Inputs` and `outputs` will be paired based on order (eg. the first input in `inputs` pairs with the first output in `outputs`). This new set of data is then mixed with memory input/output pairs, and this combined set of data is used to train the model. the memory data is refreshed several times throughout the training session so as to keep past learning relevant.
+
+---
+
+## See if a training session is active
+**POST** `/models/{model_name}/training_session`
+
+**Response Body:**
+- `training_session_active` (boolean) – Specifies if there is an ongoing training session for this model
+
+**Description:**
+Model with name `model_name` can only have one training session active at a time; read the result from `training_session_active` to determine if a training session is currently active.
 
 ---
 

@@ -32,3 +32,6 @@ RUN pip3 install -q tensorflow-model-optimization==0.5.0
 
 RUN apt-get install -y nginx
 RUN pip3 install gunicorn
+
+RUN apt-get install -y redis-server
+RUN pip3 install redis

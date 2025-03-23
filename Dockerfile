@@ -5,7 +5,9 @@ COPY api /app/api
 ENV DOCKER_MODEL_DIR=/app/models
 WORKDIR /app
 EXPOSE 8000
+EXPOSE 6379
 
-CMD gunicorn --timeout 3600 --bind 0.0.0.0:5001 api.api:app & \
-    gunicorn --timeout 3600 --bind 0.0.0.0:5002 api.api_helper:app_helper & \
+CMD gunicorn --workers 4 --timeout 200 --bind 0.0.0.0:5001 api.api:app & \
+    gunicorn --workers 4 --timeout 200 --bind 0.0.0.0:5002 api.api_helper:app_helper & \
+    redis-server --daemonize yes & \
     /usr/sbin/nginx -g "daemon off;"

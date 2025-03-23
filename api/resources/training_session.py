@@ -8,6 +8,7 @@ import json
 import random
 import tensorflow as tf
 import tensorflow_model_optimization as tfmot
+import redis
 
 # ---- Constants -------------------------
 MODEL_DIR = os.getenv('DOCKER_MODEL_DIR')
@@ -24,6 +25,7 @@ EPOCH_INCREMENT = 130  # Increase epochs per round
 INITAL_EPOCHS = 30
 
 # ---- Private ----------------------------
+_redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 # ---- Endpoints --------------------------------
 def post_training_session(model_name):
@@ -42,8 +44,12 @@ def post_training_session(model_name):
 
     # ---- Logic ------------------------------------
     # Transform inputs and outputs from [0, 1] to [0, 255], and keep them as float32
+    if not _redis_client.exists("training_session_" + model_name):
+        return jsonify({"error": f"Training session is already in progress for {model_name}."}), 400
+    _redis_client.set("training_session_" + model_name, True)
+
     inputs = np.clip(inputs, 0, 1)
-    outputs = np.clip(outputs, 0, 1)
+    # outputs = np.clip(outputs, 0, 1)
     # inputs = np.clip(inputs * 255, 0, 255).astype(np.float32)
     outputs = np.clip(outputs * 255, 0, 255).astype(np.float32)
 
@@ -110,6 +116,7 @@ def post_training_session(model_name):
 
     # Save updated model
     model.save(model_path)
+    del _currently_training[model_name]
 
     predictions = model.predict(inputs)
     for i in range(min(5, len(inputs))):  # Print first 5 samples or as many as you have
@@ -135,3 +142,9 @@ def post_training_session(model_name):
         json.dump(model_data, f, indent=4)
 
     return jsonify({"message": f"Model '{model_name}' updated with new training data!"}), 200
+
+
+def get_training_session(model_name):
+    training_session_ongoing = _redis_client.exists("training_session_" + model_name)
+    return jsonify({"training_session_active": training_session_ongoing}), 200
+
