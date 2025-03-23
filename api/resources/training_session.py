@@ -13,17 +13,6 @@ import threading
 
 # ---- Constants -------------------------
 MODEL_DIR = os.getenv('DOCKER_MODEL_DIR')
-INITIAL_LEARNING_RATE = 0.001
-LEARNING_RATE_RATIO = .6
-INITIAL_BATCH_SIZE = 2  # Initial batch size
-BATCH_SIZE_RATIO = 2
-MIN_BATCH_SIZE = 2
-MAX_BATCH_SIZE = 32
-EPOCHS = 80
-MEMORY_SAMPLING_INITAL = 0.1  # Percent of stored memory to sample per training round
-MEMORY_SAMPLING_INCREMEMT = 0.15
-EPOCH_INCREMENT = 130  # Increase epochs per round
-INITAL_EPOCHS = 30
 BATCH_SIZES = [2, 4, 8, 16, 32]
 LEARNING_RATES = [.001, .0005, .00025, .000125, .0000625]
 EPOCHS = [9, 27, 81, 243, 729]
@@ -126,8 +115,6 @@ def post_training_session(model_name):
             print("\n========================================================")
             print(f"Starting Round {round_num} -- [batch size: {batch_size}]  [learning rate: {learning_rate:.6f}]  [epochs: {epochs}]  [dataset size: {len(extended_inputs)}]")
             history = model.fit(extended_inputs, extended_outputs, epochs=epochs, batch_size=batch_size, verbose=0)
-
-            # Print diagnostics: Loss and accuracy
             print(f"Round {round_num} Loss={history.history['loss'][-1]:.9f}")
             print("========================================================\n")
 
